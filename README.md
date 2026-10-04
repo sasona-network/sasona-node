@@ -21,6 +21,6 @@ python reader/read.py --round <round> --service <a drawn service> \
     --send-to http://127.0.0.1:8401 --client <path to sasona> --keypair <path> --out reading/
 ```
 
-For now only a round's opener can read its services. Members take that over when they come on chain.
+Only the member drawn for a service can read it ([sasona-protocol](https://github.com/sasona-network/sasona-protocol) section 4). The client works out the draw, and stops before sending anything if your key was not drawn. To become a member, lock a stake with `sasona member-join`.
 
 `--first <reading>` makes it a second reading, in a re-read round, of the reading named ([sasona-protocol](https://github.com/sasona-network/sasona-protocol) section 3). The reading named has to be the latest one of that service.
