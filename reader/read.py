@@ -34,6 +34,7 @@ import urllib.request
 from pathlib import Path
 
 VERDICTS = {1: "delivered", 2: "wrong_answer", 3: "empty"}
+MAX_REPLY_BYTES = 10_000
 
 
 # sasona-protocol SPEC.md 2.1 to 2.4, as in that repository's reference/question.py.
@@ -87,7 +88,9 @@ def main():
     body = json.dumps({"code": code_for(nonce), "language": "python"}).encode()
     req = urllib.request.Request(args.send_to or args.service, body, {"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as r:
-        reply = r.read()
+        # SPEC.md 2.4: the reply is the first 10,000 bytes. That is all a
+        # member can put on chain if the reading is challenged.
+        reply = r.read(MAX_REPLY_BYTES)
     reply_hash = hashlib.sha256(reply).hexdigest()
     v = verdict(reply, nonce)
     print(f"reply      {len(reply)} bytes, {VERDICTS[v]}")
