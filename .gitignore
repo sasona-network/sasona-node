@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+# Keypairs never enter this repository, under any name.
+*keypair*.json
+id.json
+*.seed
+*.key
+*.pem
+.env*
