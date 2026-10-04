@@ -13,6 +13,13 @@
 --first makes it a second reading of an earlier one (SPEC.md section 3): it is
 committed as a re-test of that reading, in a re-read round.
 
+--replay makes it the replay of a chargeback (SPEC.md 7.4): --round is then
+not used, and the reading is committed for the purchase named, by the member
+drawn for it. The draw's entropy is recorded first if nobody has.
+
+If the service names where it asks to be paid, in an X-Pay-To header, that
+address is recorded with the reading (SPEC.md 7.1).
+
 --send-to sends the request somewhere other than the service's own URL. The
 devnet test list is made of services that do not exist, so the proof sends
 each request to a stand-in instead, and says so.
@@ -68,17 +75,24 @@ def client(args, *words) -> str:
 
 def main():
     p = argparse.ArgumentParser()
-    for name in ("--round", "--service", "--client", "--keypair", "--out"):
+    for name in ("--service", "--client", "--keypair", "--out"):
         p.add_argument(name, required=True)
+    p.add_argument("--round")
     p.add_argument("--send-to")
     p.add_argument("--first")
+    p.add_argument("--replay")
     args = p.parse_args()
 
     nonce = os.urandom(16).hex()
     question = canonical(nonce)
     question_hash = hashlib.sha256(question).hexdigest()
 
-    if args.first:
+    if args.replay:
+        draw = subprocess.run([args.client, "record-draw", args.replay, "--keypair", args.keypair], capture_output=True, text=True)
+        if draw.returncode == 0:
+            print(f"recorded   {draw.stdout.strip().splitlines()[-1]}")
+        commit_tx = client(args, "commit-replay", args.replay, args.service, question_hash)
+    elif args.first:
         commit_tx = client(args, "commit-second", args.round, args.service, question_hash, args.first)
     else:
         commit_tx = client(args, "commit-reading", args.round, args.service, question_hash)
@@ -91,11 +105,16 @@ def main():
         # SPEC.md 2.4: the reply is the first 10,000 bytes. That is all a
         # member can put on chain if the reading is challenged.
         reply = r.read(MAX_REPLY_BYTES)
+        pay_to = r.headers.get("X-Pay-To", "")
     reply_hash = hashlib.sha256(reply).hexdigest()
     v = verdict(reply, nonce)
     print(f"reply      {len(reply)} bytes, {VERDICTS[v]}")
 
-    reveal_tx = client(args, "reveal-reading", args.round, args.service, nonce, reply_hash, str(v))
+    paid = ["--pay-to", pay_to] if pay_to else []
+    if args.replay:
+        reveal_tx = client(args, "reveal-replay", args.replay, nonce, reply_hash, str(v), *paid)
+    else:
+        reveal_tx = client(args, "reveal-reading", args.round, args.service, nonce, reply_hash, str(v), *paid)
     print(f"revealed   {reveal_tx}")
 
     out = Path(args.out)
@@ -106,6 +125,7 @@ def main():
         "round": args.round, "service": args.service, "sent_to": args.send_to or args.service,
         "nonce": nonce, "question_hash": question_hash, "reply_hash": reply_hash,
         "verdict": v, "commit_tx": commit_tx, "reveal_tx": reveal_tx, "first": args.first,
+        "replay_of": args.replay, "pay_to": pay_to,
     }, indent=2) + "\n")
 
 
