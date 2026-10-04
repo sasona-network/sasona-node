@@ -2,13 +2,16 @@
 
     python read.py --round <round address> --service <url as drawn> \\
                    --client <path to the sasona client> --keypair <path> \\
-                   --out <folder> [--send-to <url>]
+                   --out <folder> [--send-to <url>] [--first <reading>]
 
 1. Pick a fresh nonce and build the question from it.
 2. Commit the question's hash on chain, and wait until it is final.
 3. Send the service the code, and keep its reply exactly as received.
 4. Hash the reply and work out the verdict.
 5. Reveal the nonce, the reply's hash and the verdict on chain.
+
+--first makes it a second reading of an earlier one (SPEC.md section 3): it is
+committed as a re-test of that reading, in a re-read round.
 
 --send-to sends the request somewhere other than the service's own URL. The
 devnet test list is made of services that do not exist, so the proof sends
@@ -67,13 +70,17 @@ def main():
     for name in ("--round", "--service", "--client", "--keypair", "--out"):
         p.add_argument(name, required=True)
     p.add_argument("--send-to")
+    p.add_argument("--first")
     args = p.parse_args()
 
     nonce = os.urandom(16).hex()
     question = canonical(nonce)
     question_hash = hashlib.sha256(question).hexdigest()
 
-    commit_tx = client(args, "commit-reading", args.round, args.service, question_hash)
+    if args.first:
+        commit_tx = client(args, "commit-second", args.round, args.service, question_hash, args.first)
+    else:
+        commit_tx = client(args, "commit-reading", args.round, args.service, question_hash)
     print(f"committed  {commit_tx}")
 
     # Only the code goes to the service, never the question (SPEC.md 2.2).
@@ -95,7 +102,7 @@ def main():
     (out / "reading.json").write_text(json.dumps({
         "round": args.round, "service": args.service, "sent_to": args.send_to or args.service,
         "nonce": nonce, "question_hash": question_hash, "reply_hash": reply_hash,
-        "verdict": v, "commit_tx": commit_tx, "reveal_tx": reveal_tx,
+        "verdict": v, "commit_tx": commit_tx, "reveal_tx": reveal_tx, "first": args.first,
     }, indent=2) + "\n")
 
 
