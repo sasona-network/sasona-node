@@ -22,3 +22,5 @@ python reader/read.py --round <round> --service <a drawn service> \
 ```
 
 For now only a round's opener can read its services. Members take that over when they come on chain.
+
+`--first <reading>` makes it a second reading, in a re-read round, of the reading named ([sasona-protocol](https://github.com/sasona-network/sasona-protocol) section 3). The reading named has to be the latest one of that service.
